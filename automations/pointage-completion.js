@@ -44,6 +44,10 @@ let logPointages = inputConfig.logPointages;
 // define global dates variables
 let completionDateForm = inputConfig.completionDateForm;
 const { completionDate, completionDateTime, completionTime, currentDateTime } = getCurrentDateAndTime(completionDateForm);
+console.log(`Complétion date: ${completionDate},
+Completion date and time: ${completionDateTime},
+Completion time: ${completionTime},
+Trigger date: ${currentDateTime}`);
 
 //get tables
 let siteTable = base.getTable('Sites');
@@ -57,6 +61,7 @@ let sites = await siteTable.selectRecordsAsync({})
 for (let site of sites.records) {
   if (site.id === logSiteID) {
     await logsTable.updateRecordAsync(logID, { 'Site': [{ id: site.id }] })
+    console.log("Site successfully linked to log record.")
     break;
   }
 }
@@ -65,6 +70,10 @@ for (let site of sites.records) {
 const automViewId = 'viwNCo4JZMKYqm1Rn'; // view = [autom] To check - today
 const incomingPointagesView = pointageTable.getView(automViewId);
 let pointages = await incomingPointagesView.selectRecordsAsync({ fields: ['Site', 'Check in status', 'Check out status', `Date d'intervention`, 'Logs', `Date d'arrivée prévue`, `Date de sortie prévue`] })
+let correspondingPointage = pointages.records.filter(record => {
+  let site = record.getCellValue('Site');
+  return site[0].id === logSiteID;
+})
 
 // iterate to find the corresponding pointage
 for (let pointage of pointages.records) {
@@ -72,7 +81,7 @@ for (let pointage of pointages.records) {
   let pointageID = pointage.id;
   let checkInStatus = pointage.getCellValueAsString('Check in status')
   let checkOutStatus = pointage.getCellValueAsString('Check out status');
-  let pointageSiteID = pointage.getCellValue('Site')[0];
+  let pointageSiteID = pointage.getCellValue('Site')[0].id;
   let pointageLogs = pointage.getCellValue('Logs');
   let expectedArrivalDateStr = pointage.getCellValueAsString(`Date d'arrivée prévue`);
   let expectedLeaveDateStr = pointage.getCellValueAsString('Date de sortie prévue');
@@ -87,6 +96,9 @@ for (let pointage of pointages.records) {
     const expectedDate = new Date(expectedDateStr);
     const currentDate = new Date(completionDateTime);
     const timeDifference = (currentDate - expectedDate) / (1000 * 60);
+
+    console.log(`Corresponding pointage for this form input: ${pointageID}`);
+    console.log(`Time difference (expected vs real): ${timeDifference} minutes`);
 
     if (logCheckType === 'Check in') { //checks in
 
@@ -107,7 +119,7 @@ for (let pointage of pointages.records) {
         })
 
         validID = true;
-        
+
       } else {
 
         await logsTable.updateRecordAsync(logID, {
@@ -152,7 +164,7 @@ for (let pointage of pointages.records) {
         })
 
       }
-      
+
       else {
 
         await logsTable.updateRecordAsync(logID, {
@@ -173,7 +185,7 @@ for (let pointage of pointages.records) {
   if (validID) {
     const data = [{ id: pointageID, status: statusValue }];
     const encodedJson = encodeURIComponent(JSON.stringify(data));
-    const url = `...?data=${encodedJson}`;
+    const url = `https://hook.eu2.make.com/3tk899iis3b7evt6ui2a5afmrlvju1ec?data=${encodedJson}`;
     await fetch(url);
   }
 }
